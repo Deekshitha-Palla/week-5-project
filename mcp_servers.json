@@ -1,0 +1,11 @@
+{
+  "servers": [
+    {
+      "name": "context7",
+      "url": "https://mcp.context7.com/mcp",
+      "key_env_var": "CONTEXT7_API_KEY",
+      "header_name": "Authorization",
+      "header_format": "Bearer {key}"
+    }
+  ]
+}
