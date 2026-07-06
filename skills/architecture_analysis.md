@@ -15,6 +15,8 @@ Gated (load if needed): docs-lookup (MCP/Context7) — only if a third-party lib
 3. **Trace dependencies.** For each component, grep its imports/calls to identify which other components it depends on. Note the direction (A calls B, not the reverse).
 4. **Trace one representative control flow.** Pick the most central path (e.g. a typical request/task lifecycle) and follow it function-to-function using list_definitions + file reads, in execution order.
 5. **Produce output.** Deliver: (a) component list with responsibilities, (b) a dependency relationship (text or simple diagram), (c) the traced control flow as a numbered sequence. Omit components/files not relevant to the question — don't dump the whole repo.
+6. **Prioritize entry points over search hits.** Before reading arbitrary files from grep results, read the package's `__init__.py`/main entry point first to see which modules are actually exported/central — a class appearing in many grep matches isn't necessarily architecturally important; one that's exported in `__init__.py` usually is.
+7. **Trace, don't list.** When explaining "how something works," follow the actual call chain from the public entry point (e.g. `requests.get()`) function-by-function, citing file:line at each step, until you hit an external dependency or the question is answered. Present as a numbered sequence: "1. `requests.get()` in api.py:73 calls `Session.request()`..." — not a list of files with one-line summaries each.
 
 ## Stop condition
 Every component named in step 2 appears in either the dependency map or is explicitly noted as a leaf with no outgoing dependencies.

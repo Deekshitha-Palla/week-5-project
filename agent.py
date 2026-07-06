@@ -30,7 +30,11 @@ SUMMARY_MODEL = "meta-llama/llama-3.3-70b-instruct"
 MAX_ITERATIONS=25
 MAX_MESSAGES = 20
 MAX_TOOL_RESULT_CHARS=1500
-
+BLOCKED_PATTERNS = [".env", ".env.*", "*.pem", "*.key", "id_rsa*", "*secret*", "*credential*"]
+def _is_blocked(path: str) -> bool:
+    import fnmatch
+    name = os.path.basename(path)
+    return any(fnmatch.fnmatch(name, pat) for pat in BLOCKED_PATTERNS)
 # BASE_PROMPT = """You are Code Scout, a coding agent working inside a real repository.
 
 # ENVIRONMENT
@@ -108,12 +112,10 @@ Do not confuse:
 - Documentation with source code.
 
 Confidence rule for library-knowledge questions:
-If you can answer from your own knowledge with reasonable confidence, DO SO — do not
-ask the user "which library did you mean?" as a substitute for answering.
-Only ask a clarifying question if the repo genuinely contains multiple candidate
-libraries/clients AND you cannot resolve the ambiguity with 1-2 searches.
-Ending a turn with "let me know if you meant X" when X was checkable is a failure,
-not caution.
+This rule governs whether to ask a clarifying question, NOT whether to skip tools.
+Do not ask the user "which library did you mean?" if 1-2 searches could resolve it.
+This does not permit skipping the MCP-first check below when a docs tool is
+connected — "confident" and "verified via MCP" are not substitutes for each other.
 
 ========================
 Investigation Strategy
@@ -139,7 +141,7 @@ C exists.
 
 Before treating a question as pure library-knowledge, spend at most 1-2 searches
 confirming which library/client is actually in play, e.g.:
-    grep -rn "import requests\|axios\|fetch(\|urllib3" .
+    grep -rn "import requests\\|axios\\|fetch(\\|urllib3" .
 This turns a vague question into a concrete one and costs less than asking the user.
 Skipping this and jumping straight to a clarifying question is not allowed when a
 cheap search could have resolved it.
@@ -191,18 +193,10 @@ Use the cheapest reliable source:
 - Tests/commands -> verify behavior.
 - If unsure, spend at most 1-2 searches checking repo-relevance before deciding —
 don't exhaust every local tool before considering the answer isn't local.
-
-For library-behavior questions specifically:
-1. Confirm the library via a cheap grep (see Investigation Strategy).
-2. If an MCP docs tool (e.g. Context7) is connected, use it to pull authoritative
-   behavior before answering — do not rely solely on parametric memory when a
-   verified source is one tool call away.
-3. Only skip the MCP call if no docs-capable MCP tool is connected; in that case,
-   answer from knowledge but explicitly flag it as unverified ("based on general
-   knowledge, not confirmed against source docs").
-"Verified evidence over assumption" applies to library behavior exactly as much as
-it applies to repo behavior — external evidence is still evidence.
-Avoid unnecessary tool calls.
+For library-behavior questions, when a docs-capable MCP tool is connected:
+ALWAYS call it before producing a final answer, even if you believe you already
+know the answer. "I don't have access to documentation" is only true if no
+MCP tool is connected — check your actual tool list before claiming this.
 
 ========================
 Final Answers
@@ -447,8 +441,8 @@ class Agent:
             response=await client.chat.completions.create(
                 model=MODEL,
                 messages=api_messages,
-                temperature=0.3,
-                top_p=0.9,
+                temperature=0,
+                top_p=1,
                 tools=self._all_tools,
                 max_tokens=512,
             )
@@ -478,6 +472,11 @@ class Agent:
         name = tool_call.function.name
         try:
             args = json.loads(tool_call.function.arguments)
+
+            # hook — runs before any routing, blocks sensitive file access
+            if name in ("read_file", "grep") and _is_blocked(args.get("path", "")):
+                return json.dumps({"error": "blocked: sensitive file access denied by policy"})
+
             if name == "load_skill":
                 return json.dumps(self._load_skill(args.get("skill_name", "")))
             if name in TOOL_REGISTRY:

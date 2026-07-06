@@ -18,6 +18,9 @@ import glob as glob_module
 WORKSPACE_ROOT = os.path.abspath(os.environ.get("WORKSPACE_ROOT", "."))
 
 
+
+
+
 def resolve_path(path: str) -> str:
 
     p = os.path.abspath(os.path.join(WORKSPACE_ROOT,path))
@@ -27,6 +30,9 @@ def resolve_path(path: str) -> str:
 
 
 def read_file(path: str, start_line: int = 1, read_lines: int = 200) -> dict:
+    resolved = resolve_path(path)
+    if resolved is None:
+        return {"error": "path escapes workspace"}
     p=resolve_path(path)
     with open(p,"r",encoding="utf-8") as f:
         lines=f.readlines()

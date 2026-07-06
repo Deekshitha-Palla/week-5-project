@@ -39,6 +39,9 @@ MAX_GREP_RESULTS = 50
 EXCLUDE_DIRS = {".git", "node_modules", "__pycache__", ".venv", "venv", "dist", "build"}
 SKIP_EXTENSIONS = {".pyc", ".png", ".jpg", ".jpeg", ".gif", ".pdf", ".zip", ".exe"}
 
+
+
+
 def resolve_path(path: str) -> str | None:
     """Resolve `path` inside WORKSPACE_ROOT; return None if it escapes."""
     # TODO: implement (same idea as Week 3's resolve_path)
